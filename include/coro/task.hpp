@@ -10,8 +10,10 @@
  */
 #pragma once
 
+#include <atomic>
 #include <cassert>
 #include <coroutine>
+#include <cstddef>
 #include <stdexcept>
 #include <utility>
 
@@ -50,12 +52,31 @@ struct promise_base
 
     constexpr auto initial_suspend() noexcept { return std::suspend_always{}; }
 
-    [[CORO_TEST_USED(lab1)]] auto final_suspend() noexcept -> std::suspend_always
+    [[CORO_TEST_USED(lab1)]] auto final_suspend() noexcept
     {
         // TODO[lab1]: Add you codes
         // Return suspend_always is incorrect,
         // so you should modify the return type and define new awaiter to return
-        return {};
+        // 这里创建一种新的awaiter，使用返回类型为std::coroutine_handle<>的await_suspend函数
+        // 当有需要尾调用的协程时，就返回它
+        // 否则，就返回空协程，即std::noop_coroutine(); 注意std::coroutine_handle<>{nullptr}并不表示空协程
+        struct suspend_awaiter
+        {
+            suspend_awaiter(std::coroutine_handle<> h) : m_handle(h) {}
+            constexpr bool await_ready() const noexcept { return false; }
+
+            auto await_suspend(std::coroutine_handle<> h) const noexcept -> std::coroutine_handle<>
+            {
+                if (m_handle)
+                    return m_handle;
+                return std::noop_coroutine();
+            }
+
+            constexpr void await_resume() const noexcept {}
+            std::coroutine_handle<> m_handle;
+        };
+
+        return suspend_awaiter{next_coroutine};
     }
 
 #ifdef ENABLE_MEMORY_ALLOC
@@ -69,7 +90,22 @@ struct promise_base
         ::coro::detail::ginfo.mem_alloc->release(ptr);
     }
 #endif
+    void set_nextcoro(std::coroutine_handle<> next)
+    {
+        next_coroutine = next;
+    }
+    void set_detach()
+    {
+        is_detach = true;
+    }
+    bool get_detach()
+    {
+        return is_detach;
+    }
 
+private:
+    std::coroutine_handle<> next_coroutine{nullptr};
+    bool                    is_detach{false};
 #ifdef DEBUG
 public:
     int promise_id{0};
@@ -169,6 +205,9 @@ public:
         auto await_suspend(std::coroutine_handle<> awaiting_coroutine) noexcept -> std::coroutine_handle<>
         {
             // TODO[lab1]: Add you codes
+            // 设置当前协程运行结束后需要回调的协程
+            // 当前协程结束后，会resume到awaiting_coroutine
+            m_coroutine.promise().set_nextcoro(awaiting_coroutine);
             return m_coroutine;
         }
 
@@ -235,6 +274,8 @@ public:
     [[CORO_TEST_USED(lab1)]] auto detach() -> void
     {
         // TODO[lab1]: Add you codes
+        m_coroutine.promise().set_detach();
+        m_coroutine = nullptr;
     }
 
     auto operator co_await() const& noexcept
@@ -278,6 +319,9 @@ using coroutine_handle = std::coroutine_handle<detail::promise_base>;
 [[CORO_TEST_USED(lab1)]] inline auto clean(std::coroutine_handle<> handle) noexcept -> void
 {
     // TODO[lab1]: Add you codes
+    coroutine_handle coroutine = coroutine_handle::from_address(handle.address());
+    if (coroutine && coroutine.promise().get_detach())
+        coroutine.destroy();
 }
 
 namespace detail
