@@ -374,6 +374,7 @@ TEST_F(EngineTest, LastSubmitTaskToEngine)
     auto t1 = std::thread(
         [&]()
         {
+            m_engine.wait_task();
             m_engine.poll_submit();
             m_vec[0] = 1;
             ASSERT_TRUE(m_engine.ready());
@@ -430,6 +431,7 @@ TEST_F(EngineTest, SubmitTaskToEngineExecByUser)
     auto t1 = std::thread(
         [&]()
         {
+            m_engine.wait_task();
             m_engine.poll_submit();
             m_vec[0] = 1;
             ASSERT_TRUE(m_engine.ready());
@@ -462,6 +464,7 @@ TEST_F(EngineTest, SubmitTaskToEngineExecByEngine)
     auto t1 = std::thread(
         [&]()
         {
+            m_engine.wait_task();
             m_engine.poll_submit();
             m_vec[0] = 1;
             ASSERT_TRUE(m_engine.ready());

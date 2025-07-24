@@ -4,14 +4,31 @@
 #include "coro/meta_info.hpp"
 #include "coro/task.hpp"
 #include <coroutine>
+#include <cstdint>
 
 namespace coro::detail
 {
 using std::memory_order_relaxed;
 
+engine::engine() noexcept
+{
+    m_id = ginfo.engine_id.fetch_add(1, std::memory_order_relaxed);
+    m_efd = eventfd(0, 0);
+    if (m_efd < 0)
+    {
+        log::error("engine init event_fd failed");
+        std::exit(1);
+    }
+}
+
+engine::~engine() noexcept
+{
+    close(m_efd);
+}
+
 auto engine::init() noexcept -> void
 {
-    m_upxy.init(config::kEntryLength);
+    m_upxy.init(config::kEntryLength,m_efd);
     linfo.egn = this;
     // TODO[lab2a]: Add you codes
 }
@@ -70,26 +87,22 @@ auto engine::handle_cqe_entry(urcptr cqe) noexcept -> void
 {
     auto data = reinterpret_cast<io::detail::io_info*>(io_uring_cqe_get_data(cqe));
     data->cb(data, cqe->res);
-    notify();
 }
 
 auto engine::poll_submit() noexcept -> void
 {
     // TODO[lab2a]: Add you codes
-    // 1.处理已完成的io任务
+    // 1.提交io任务
+    m_upxy.submit();
+    m_running_io += m_submit_io;
+    m_submit_io = 0;
+
+    // 2.处理已完成的io任务
     int cqe_num = m_upxy.peek_batch_cqe(m_urc.data(), m_urc.size());
     for (int i = 0; i < cqe_num; ++i)
         handle_cqe_entry(m_urc[i]);
     m_upxy.cq_advance(cqe_num);
     m_running_io -= cqe_num;
-
-    // 2.提交io任务
-    m_upxy.submit();
-    m_running_io += m_submit_io;
-    m_submit_io = 0;
-
-    // 3.读read eventfd。如果没有完成IO任务/计算任务将阻塞，等待有任务产生
-    m_upxy.wait_eventfd();
 }
 
 auto engine::add_io_submit() noexcept -> void
@@ -106,6 +119,15 @@ auto engine::empty_io() noexcept -> bool
 
 auto engine::notify() noexcept -> void
 {
-    m_upxy.write_eventfd(1);
+    auto ret = eventfd_write(m_efd, 1);
+    assert(ret != -1 && "eventfd write error");
+}
+
+auto engine::wait_task() noexcept -> uint64_t
+{
+    uint64_t res;
+    auto     ret = eventfd_read(m_efd ,&res);
+    assert(ret != -1 && "eventfd read error");
+    return res;
 }
 }; // namespace coro::detail

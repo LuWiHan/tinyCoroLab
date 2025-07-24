@@ -12,7 +12,9 @@ context::context() noexcept
 auto context::init() noexcept -> void
 {
     // TODO[lab2b]: Add you codes
-    m_engine.init();
+    if(!m_inited)
+        m_engine.init();
+    m_inited = true;
     linfo.ctx = this;
 }
 
@@ -20,7 +22,9 @@ auto context::deinit() noexcept -> void
 {
     // TODO[lab2b]: Add you codes
     linfo.ctx = nullptr;
-    m_engine.deinit();
+    if(m_inited)
+        m_engine.deinit();
+    m_inited = false;
 }
 
 auto context::start() noexcept -> void
@@ -63,18 +67,25 @@ auto context::unregister_wait(int register_cnt) noexcept -> void
 auto context::run(stop_token token) noexcept -> void
 {
     // TODO[lab2b]: Add you codes
-    while (!(token.stop_requested() && task_completed()))
+    while (true)
     {
-        // 2.处理计算任务
+        // 1.处理计算任务
         while (m_engine.ready())
             m_engine.exec_one_task();
 
-        // 3.处理IO任务
-        // 如果要求工作线程退出，说明不需要engine继续等待事件，处理完所有任务后就结束
-        // 因此这里就往eventfd写值，让engine不会阻塞在eventfd，即不会阻塞等事件
-        if (token.stop_requested())
-            m_engine.notify();
+        // 2.处理IO任务
+        // // 如果要求工作线程退出，说明不需要engine继续等待事件，处理完所有任务后就结束
+        // // 因此这里就往eventfd写值，让engine不会阻塞在eventfd，即不会阻塞等事件
+        // if (token.stop_requested())
+        //     m_engine.notify();
         m_engine.poll_submit();
+
+        // 3.等待任务
+        // 在进行等待前，是否满足事件循环退出条件：线程退出信号 && 所有任务完成
+        // 如果满足，则退出，否则等待事件
+        if(token.stop_requested() && task_completed())
+            break;
+        m_engine.wait_task();
     }
 }
 

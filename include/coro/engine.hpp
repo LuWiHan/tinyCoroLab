@@ -62,9 +62,8 @@ class engine
     friend class ::coro::context;
 
 public:
-    engine() noexcept { m_id = ginfo.engine_id.fetch_add(1, std::memory_order_relaxed); }
-
-    ~engine() noexcept = default;
+    engine() noexcept;
+    ~engine() noexcept;
 
     // forbidden to copy and move
     engine(const engine&)                    = delete;
@@ -127,7 +126,7 @@ public:
     auto handle_cqe_entry(urcptr cqe) noexcept -> void;
 
     /**
-     * @brief submit uring sqe and wait uring finish, then handle
+     * @brief submit uring sqe , then handle
      * cqe entry by call handle_cqe_entry
      *
      */
@@ -169,6 +168,11 @@ public:
     // TODO[lab2a]: Add more function if you need
 
     auto notify() noexcept -> void;
+    /**
+     * @brief 如果没有已完成的IO任务或计算任务，将会阻塞等待
+     *        否则将返回，返回值为eventfd读取的结果
+     */
+    auto wait_task() noexcept -> uint64_t;
 
 private:
     uint32_t    m_id;
@@ -184,6 +188,7 @@ private:
     // io任务数量
     uint32_t m_submit_io{0};
     uint32_t m_running_io{0};
+    int      m_efd{0};
 };
 
 /**

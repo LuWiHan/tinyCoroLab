@@ -151,7 +151,8 @@ private:
 
     // TODO[lab2b]: Add more member variables if you need
     // 陷入suspend状态的、还未执行完的协程数量，context要把这些协程都执行完才能退出
-    size_t m_wait_num{0};
+    size_t              m_wait_num{0};
+    bool                m_inited{false};
 };
 
 inline context& local_context() noexcept

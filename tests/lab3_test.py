@@ -7,7 +7,7 @@ GREEN = "\033[32m"
 RESET = "\033[0m"
 
 # test cases: [(<threadnum>, <port>) ...]
-paras = [(1, 8000), (0, 8001)]
+paras = [(1, 8000), (5, 8001)]
 
 
 def run_test(

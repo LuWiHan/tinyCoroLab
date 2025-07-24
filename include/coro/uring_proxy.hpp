@@ -30,20 +30,10 @@ inline constexpr uring_fds_item invalid_fd_item = uring_fds_item{.idx = -1, .ptr
 class uring_proxy
 {
 public:
-    uring_proxy() noexcept
-    {
-        // must init in construct func
-        m_efd = eventfd(0, 0);
-        if (m_efd < 0)
-        {
-            log::error("uring_proxy init event_fd failed");
-            std::exit(1);
-        }
-    }
-
+    uring_proxy() noexcept = default;
     ~uring_proxy() noexcept = default;
 
-    auto init(unsigned int entry_length) noexcept -> void
+    auto init(unsigned int entry_length, int efd) noexcept -> void
     {
         // don't need to set m_para
         memset(&m_para, 0, sizeof(m_para));
@@ -53,6 +43,7 @@ public:
         m_para.sq_thread_idle = config::kSqthreadIdle;
 #endif // ENABLE_SQPOOL
 
+        m_efd = efd;
         auto res = io_uring_queue_init_params(entry_length, &m_uring, &m_para);
         if (res != 0)
         {
@@ -99,7 +90,6 @@ public:
     {
         // this operation cost too much time, so don't call this function
         // io_uring_unregister_eventfd(&m_uring);
-        close(m_efd);
         m_efd = -1;
 
         if constexpr (config::kEnableFixfd)
@@ -202,13 +192,13 @@ public:
         return i;
     }
 
-    auto wait_eventfd() noexcept -> uint64_t
-    {
-        uint64_t u;
-        auto     ret = eventfd_read(m_efd, &u);
-        assert(ret != -1 && "eventfd read error");
-        return u;
-    }
+    // auto wait_eventfd() noexcept -> uint64_t
+    // {
+    //     uint64_t u;
+    //     auto     ret = eventfd_read(m_efd, &u);
+    //     assert(ret != -1 && "eventfd read error");
+    //     return u;
+    // }
 
     /**
      * @brief batch fetch cqe entry
@@ -222,11 +212,11 @@ public:
         return io_uring_peek_batch_cqe(&m_uring, cqes, num);
     }
 
-    inline auto write_eventfd(uint64_t num) noexcept -> void CORO_INLINE
-    {
-        auto ret = eventfd_write(m_efd, num);
-        assert(ret != -1 && "eventfd write error");
-    }
+    // inline auto write_eventfd(uint64_t num) noexcept -> void CORO_INLINE
+    // {
+    //     auto ret = eventfd_write(m_efd, num);
+    //     assert(ret != -1 && "eventfd write error");
+    // }
 
     /**
      * @brief an efficient way of seen cqe entry
