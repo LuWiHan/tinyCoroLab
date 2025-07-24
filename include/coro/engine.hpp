@@ -168,6 +168,8 @@ public:
 
     // TODO[lab2a]: Add more function if you need
 
+    auto notify() noexcept -> void;
+
 private:
     uint32_t    m_id;
     uring_proxy m_upxy;

@@ -11,6 +11,7 @@
 #pragma once
 
 #include <atomic>
+#include <cstddef>
 #include <memory>
 #include <thread>
 
@@ -88,7 +89,11 @@ public:
      * @brief wait work thread stop
      *
      */
-    inline auto join() noexcept -> void { m_job->join(); }
+    inline auto join() noexcept -> void
+    {
+        notify_stop();
+        m_job->join();
+    }
 
     inline auto submit_task(task<void>&& task) noexcept -> void
     {
@@ -137,6 +142,7 @@ public:
     [[CORO_TEST_USED(lab2b)]] auto run(stop_token token) noexcept -> void;
 
     // TODO[lab2b]: Add more function if you need
+    auto task_completed() noexcept -> bool;
 
 private:
     CORO_ALIGN engine   m_engine;
@@ -144,6 +150,8 @@ private:
     ctx_id              m_id;
 
     // TODO[lab2b]: Add more member variables if you need
+    // 陷入suspend状态的、还未执行完的协程数量，context要把这些协程都执行完才能退出
+    size_t m_wait_num{0};
 };
 
 inline context& local_context() noexcept

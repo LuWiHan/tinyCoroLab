@@ -76,6 +76,7 @@ private:
     detail::ctx_container                               m_ctxs;
     detail::dispatcher<coro::config::kDispatchStrategy> m_dispatcher;
     // TODO[lab2b]: Add more member variables if you need
+    bool m_stop{false};
 
 #ifdef ENABLE_MEMORY_ALLOC
     // Memory Allocator

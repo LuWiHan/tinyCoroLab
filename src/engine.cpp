@@ -53,7 +53,7 @@ auto engine::submit_task(coroutine_handle<> handle) noexcept -> void
 {
     // TODO[lab2a]: Add you codes
     m_task_queue.push(handle);
-    m_upxy.write_eventfd(1);
+    notify();
 }
 
 auto engine::exec_one_task() noexcept -> void
@@ -70,7 +70,7 @@ auto engine::handle_cqe_entry(urcptr cqe) noexcept -> void
 {
     auto data = reinterpret_cast<io::detail::io_info*>(io_uring_cqe_get_data(cqe));
     data->cb(data, cqe->res);
-    m_upxy.write_eventfd(1);
+    notify();
 }
 
 auto engine::poll_submit() noexcept -> void
@@ -102,5 +102,10 @@ auto engine::empty_io() noexcept -> bool
 {
     // TODO[lab2a]: Add you codes
     return (m_submit_io == 0 && m_running_io == 0);
+}
+
+auto engine::notify() noexcept -> void
+{
+    m_upxy.write_eventfd(1);
 }
 }; // namespace coro::detail
