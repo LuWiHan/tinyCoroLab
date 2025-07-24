@@ -13,6 +13,7 @@
 #include <array>
 #include <atomic>
 #include <coroutine>
+#include <cstdint>
 #include <functional>
 #include <queue>
 
@@ -28,7 +29,7 @@ class context;
 };
 
 /**
- * @brief Welcome to tinycoro lab2a, in this part you will build the heart of tinycoro¡ª¡ªengine by
+ * @brief Welcome to tinycoro lab2a, in this part you will build the heart of tinycoroï¿½ï¿½ï¿½ï¿½engine by
  * modifing engine.hpp and engine.cpp, please ensure you have read the document of lab2a.
  *
  * @warning You should carefully consider whether each implementation should be thread-safe.
@@ -178,6 +179,9 @@ private:
     array<urcptr, config::kQueCap> m_urc;
 
     // TODO[lab2a]: Add more member variables if you need
+    // ioä»»åŠ¡æ•°é‡
+    uint32_t m_submit_io{0};
+    uint32_t m_running_io{0};
 };
 
 /**
