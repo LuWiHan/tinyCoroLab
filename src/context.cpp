@@ -7,6 +7,7 @@ namespace coro
 context::context() noexcept
 {
     m_id = ginfo.context_id.fetch_add(1, std::memory_order_relaxed);
+    m_stop_cb = []()->bool{ return true; };
 }
 
 auto context::init() noexcept -> void
@@ -82,9 +83,14 @@ auto context::run(stop_token token) noexcept -> void
 
         // 3.等待任务
         // 在进行等待前，是否满足事件循环退出条件：线程退出信号 && 所有任务完成
-        // 如果满足，则退出，否则等待事件
+        // 如果满足，调用m_stop_cb函数，根据函数的返回值判断是否退出
+        // 如果返回true，退出否则继续事件循环
         if(token.stop_requested() && task_completed())
-            break;
+        {
+            if(m_stop_cb())
+                break;
+        }
+            
         m_engine.wait_task();
     }
 }

@@ -14,6 +14,7 @@
 #include <cstddef>
 #include <memory>
 #include <thread>
+#include <functional>
 
 #include "config.h"
 #include "coro/engine.hpp"
@@ -53,6 +54,12 @@ using detail::linfo;
 using engine = detail::engine;
 
 class scheduler;
+
+/**
+ * Context满足退出条件时，会调用该回调函数
+ * 通过函数的返回值判断是否退出，如果true退出，否则继续事件循环
+ */
+using stop_cb = std::function<bool()>;
 
 /**
  * @brief Each context own one engine, it's the core part of tinycoro,
@@ -144,6 +151,8 @@ public:
     // TODO[lab2b]: Add more function if you need
     auto task_completed() noexcept -> bool;
 
+    auto set_stop_cb(const stop_cb& cb) noexcept -> void { m_stop_cb = cb;}
+
 private:
     CORO_ALIGN engine   m_engine;
     unique_ptr<jthread> m_job;
@@ -153,6 +162,7 @@ private:
     // 陷入suspend状态的、还未执行完的协程数量，context要把这些协程都执行完才能退出
     size_t              m_wait_num{0};
     bool                m_inited{false};
+    stop_cb             m_stop_cb;
 };
 
 inline context& local_context() noexcept
