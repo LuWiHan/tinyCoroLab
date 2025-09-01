@@ -11,12 +11,16 @@
 #pragma once
 #include <atomic>
 #include <coroutine>
+#include <mutex>
+#include <vector>
 
 #include "coro/attribute.hpp"
 #include "coro/concepts/awaitable.hpp"
 #include "coro/context.hpp"
 #include "coro/detail/container.hpp"
 #include "coro/detail/types.hpp"
+#include "coro/meta_info.hpp"
+#include "coro/spinlock.hpp"
 
 namespace coro
 {
@@ -48,10 +52,34 @@ namespace detail
 template<typename return_type = void>
 class event
 {
-    // Just make compile success
-    struct awaiter : detail::noop_awaiter
+    struct waitting_element
     {
-        auto await_resume() -> return_type { return {}; }
+        context* ctx;
+        std::coroutine_handle<> handle;
+    };
+
+    // Just make compile success
+    struct awaiter
+    {
+        auto await_ready() -> bool { return m_event->m_flag.load(std::memory_order_relaxed); }
+        auto await_suspend(std::coroutine_handle<> h) -> bool
+        {
+            // 加入等待队列
+            std::lock_guard<detail::spinlock> lock(m_event->m_lock);
+            bool flag = m_event->m_flag.load(std::memory_order_acquire);
+            if(flag)
+                return false;
+            waitting_element element;
+            element.ctx = detail::linfo.ctx;
+            element.handle = h;
+            m_event->m_wait_queue.push_back(element);
+            element.ctx->register_wait(1);
+
+            return true;
+
+        }
+        auto await_resume() -> return_type { return m_event->m_value; }
+        event* m_event;
     };
 
 public:
@@ -60,7 +88,23 @@ public:
     template<typename value_type>
     auto set(value_type&& value) noexcept -> void
     {
+        //1.设置标志
+        m_value = value;
+        m_flag.store(true,std::memory_order_release);
+
+        // 2.唤醒suspend协程
+        std::lock_guard<detail::spinlock> lock(m_lock);
+        for(int i=0;i<m_wait_queue.size();++i)
+        {
+            m_wait_queue[i].ctx->submit_task(m_wait_queue[i].handle);
+            m_wait_queue[i].ctx->unregister_wait(1);
+        }
     }
+private:
+    return_type             m_value;
+    std::vector<waitting_element>    m_wait_queue;
+    detail::spinlock        m_lock;
+    std::atomic_bool        m_flag{false};
 };
 
 template<>

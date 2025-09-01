@@ -47,7 +47,8 @@ public:
         auto res = io_uring_queue_init_params(entry_length, &m_uring, &m_para);
         if (res != 0)
         {
-            log::error("uring_proxy init uring failed");
+            log::error("uring_proxy init uring failed, errno = {}, msg = {}",
+               -res, strerror(-res));
             std::exit(1);
         }
 
