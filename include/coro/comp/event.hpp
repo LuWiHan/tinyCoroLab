@@ -44,23 +44,18 @@ class context;
 namespace detail
 {
 // TODO[lab4a]: Add code that you don't want to use externally in namespace detail
-}; // namespace detail
-
-// TODO[lab4a]: This event is an example to make complie success,
-// You should delete it and add your implementation, I don't care what you do,
-// but keep the function set() and wait()'s declaration same with example.
-template<typename return_type = void>
-class event
+struct waitting_element
 {
-    struct waitting_element
+    context* ctx;
+    std::coroutine_handle<> handle;
+};
+class event_base
+{
+protected:
+    struct awaiter_base
     {
-        context* ctx;
-        std::coroutine_handle<> handle;
-    };
-
-    // Just make compile success
-    struct awaiter
-    {
+        awaiter_base(event_base* e)
+            : m_event(e){}
         auto await_ready() -> bool { return m_event->m_flag.load(std::memory_order_relaxed); }
         auto await_suspend(std::coroutine_handle<> h) -> bool
         {
@@ -69,27 +64,27 @@ class event
             bool flag = m_event->m_flag.load(std::memory_order_acquire);
             if(flag)
                 return false;
-            waitting_element element;
+            detail::waitting_element element;
             element.ctx = detail::linfo.ctx;
             element.handle = h;
             m_event->m_wait_queue.push_back(element);
-            element.ctx->register_wait(1);
+            m_register_cnt = 1;
+            element.ctx->register_wait(m_register_cnt);
 
             return true;
 
         }
-        auto await_resume() -> return_type { return m_event->m_value; }
-        event* m_event;
+        auto await_resume() -> void 
+        { 
+            detail::linfo.ctx->unregister_wait(m_register_cnt);
+        }
+        event_base* m_event;
+        int m_register_cnt{0};
     };
 
-public:
-    auto wait() noexcept -> awaiter { return {}; } // return awaitable
-
-    template<typename value_type>
-    auto set(value_type&& value) noexcept -> void
+    inline auto notify_all() -> void
     {
         //1.设置标志
-        m_value = value;
         m_flag.store(true,std::memory_order_release);
 
         // 2.唤醒suspend协程
@@ -97,22 +92,57 @@ public:
         for(int i=0;i<m_wait_queue.size();++i)
         {
             m_wait_queue[i].ctx->submit_task(m_wait_queue[i].handle);
-            m_wait_queue[i].ctx->unregister_wait(1);
         }
     }
-private:
-    return_type             m_value;
-    std::vector<waitting_element>    m_wait_queue;
+
+protected:
+    std::vector<detail::waitting_element>    m_wait_queue;
     detail::spinlock        m_lock;
     std::atomic_bool        m_flag{false};
 };
 
-template<>
-class event<>
+}; // namespace detail
+
+// TODO[lab4a]: This event is an example to make complie success,
+// You should delete it and add your implementation, I don't care what you do,
+// but keep the function set() and wait()'s declaration same with example.
+template<typename return_type = void>
+class event : public detail::event_base
 {
+    
+    // Just make compile success
+    struct awaiter : public awaiter_base
+    {
+        awaiter(event* e)
+            : awaiter_base(e){}
+        auto await_resume() -> return_type 
+        { 
+            awaiter_base::await_resume();
+            return static_cast<event*>(m_event)->m_value; 
+        }
+    };
+
 public:
-    auto wait() noexcept -> detail::noop_awaiter { return {}; } // return awaitable
-    auto set() noexcept -> void {}
+    auto wait() noexcept -> awaiter { return {this}; } // return awaitable
+
+    template<typename value_type>
+    auto set(value_type&& value) noexcept -> void
+    {
+        m_value = value;
+        notify_all();
+    }
+private:
+    return_type             m_value;
+};
+
+template<>
+class event<> : public detail::event_base
+{
+    using awaiter = awaiter_base;
+
+public:
+    auto wait() noexcept -> awaiter { return {this}; } // return awaitable
+    auto set() noexcept -> void { notify_all(); }
 };
 
 /**
