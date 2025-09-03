@@ -17,6 +17,8 @@
 
 #include "coro/comp/mutex_guard.hpp"
 #include "coro/detail/types.hpp"
+#include "coro/context.hpp"
+#include "coro/spinlock.hpp"
 
 namespace coro
 {
@@ -43,25 +45,54 @@ class context;
 // but keep the member function and construct function's declaration same with example.
 class mutex
 {
-    // Just make lock_guard() compile success
-    struct guard_awaiter : detail::noop_awaiter
+    struct waitting_element
     {
-        guard_awaiter(mutex& m) noexcept : mtx(m) {}
-        auto   await_resume() -> detail::lock_guard<mutex> { return detail::lock_guard<mutex>(mtx); }
-        mutex& mtx;
+        context* ctx;
+        std::coroutine_handle<> handle;
+    };
+
+    struct awaiter
+    {
+        awaiter(mutex* m) noexcept : m_mtx(m) {}
+        auto await_ready() -> bool ;
+        auto await_suspend(std::coroutine_handle<> h) -> bool;
+        auto await_resume() -> void 
+        { 
+            detail::linfo.ctx->unregister_wait(m_register_cnt);
+        }
+
+        mutex* m_mtx;
+        int m_register_cnt{0};
+    };
+
+    // Just make lock_guard() compile success
+    struct guard_awaiter : awaiter
+    {
+        guard_awaiter(mutex* m) noexcept : awaiter(m) {}
+        auto   await_resume() -> detail::lock_guard<mutex> 
+        { 
+            awaiter::await_resume();
+            return detail::lock_guard<mutex>(*m_mtx); 
+        }
     };
 
 public:
     mutex() noexcept {}
     ~mutex() noexcept {}
 
-    auto try_lock() noexcept -> bool { return {}; }
+    auto try_lock() noexcept -> bool;
 
-    auto lock() noexcept -> detail::noop_awaiter { return {}; };
+    auto lock() noexcept -> awaiter { return {this}; };
 
-    auto unlock() noexcept -> void {};
+    auto unlock() noexcept -> void;
 
-    auto lock_guard() noexcept -> guard_awaiter { return {*this}; };
+    auto lock_guard() noexcept -> guard_awaiter { return {this}; };
+private:
+    auto is_lock() noexcept -> bool;
+private:
+    std::atomic_bool                m_lock_state{false};
+    detail::spinlock                m_spinlock;
+    std::queue<waitting_element>    m_wait_queue;
 };
 
 }; // namespace coro
