@@ -12,8 +12,11 @@
 
 #include <atomic>
 #include <coroutine>
+#include <vector>
 
 #include "coro/detail/types.hpp"
+#include "coro/spinlock.hpp"
+#include "coro/context.hpp"
 
 namespace coro
 {
@@ -40,14 +43,63 @@ class context;
 // but keep the member function and construct function's declaration same with example.
 class wait_group
 {
+    struct waitting_element
+    {
+        context* ctx;
+        std::coroutine_handle<> handle;
+    };
+
+    struct awaiter
+    {
+        awaiter(wait_group* g) : m_group(g){}
+        auto await_ready() -> bool { return m_group->m_flag.load(std::memory_order_relaxed); }
+        auto await_suspend(std::coroutine_handle<> h) -> bool
+        {
+            std::lock_guard<detail::spinlock> lock(m_group->m_lock);
+            if(m_group->m_flag.load(std::memory_order_acquire))
+                return false;
+            waitting_element element;
+            element.ctx = detail::linfo.ctx;
+            element.handle = h;
+            m_group->m_wait_queue.push_back(element);
+            m_register_cnt = 1;
+            element.ctx->register_wait(m_register_cnt);
+            return true;
+        }
+        auto await_resume() -> void { detail::linfo.ctx->unregister_wait(m_register_cnt); }
+
+        wait_group*  m_group;
+        int     m_register_cnt{0};
+    };
+
 public:
-    explicit wait_group(int count = 0) noexcept {}
+    explicit wait_group(int count = 0) noexcept :m_cnt(count) {}
 
-    auto add(int count) noexcept -> void {};
+    auto add(int count) noexcept -> void 
+    {
+        uint64_t cnt = m_cnt.fetch_add(count,std::memory_order_relaxed);
+        if(cnt+count == 0)
+        {
+            // 1.????
+            m_flag.store(true,std::memory_order_release);
+            // 2.????
+            std::lock_guard<detail::spinlock> lock(m_lock);
+            for(auto& e:m_wait_queue)
+                e.ctx->submit_task(e.handle);
+        }
+    };
 
-    auto done() noexcept -> void {};
+    auto done() noexcept -> void 
+    {
+        add(-1);
+    };
 
-    auto wait() noexcept -> detail::noop_awaiter { return {}; };
+    auto wait() noexcept -> awaiter { return {this}; };
+private:
+    std::atomic_uint64_t            m_cnt;
+    std::atomic_bool                m_flag{false};
+    detail::spinlock                m_lock;
+    std::vector<waitting_element>   m_wait_queue;
 };
 
 }; // namespace coro

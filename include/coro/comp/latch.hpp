@@ -82,11 +82,11 @@ public:
 
     auto count_down() noexcept -> void
     {
-        uint64_t cnt = m_cnt.fetch_sub(1,std::memory_order_acquire);
+        uint64_t cnt = m_cnt.fetch_sub(1,std::memory_order_release);
         if(cnt == 1) // 第一个计数减0
         {
             // 1.设置标值
-            m_flag.store(true,std::memory_order_acquire);
+            m_flag.store(true,std::memory_order_release);
             // 2.唤醒协程
             std::lock_guard<detail::spinlock> lock(m_lock);
             for(auto& e:m_wait_queue)

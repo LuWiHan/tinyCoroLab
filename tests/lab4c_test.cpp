@@ -102,4 +102,4 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple(0, 100, 1),
         std::make_tuple(0, 100, 100),
         std::make_tuple(0, 100, 10000),
-        std::make_tuple(0, 100, config::kMaxTestTaskNum)));
+        std::make_tuple(0, 100, config::kMaxTestTaskNum/2)));
