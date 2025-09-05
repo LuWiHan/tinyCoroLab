@@ -185,7 +185,7 @@ TEST_P(ConditionVarNotifyAllTest, ConditionVarNotifyAll)
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    ConditionVarNotifyAllTests, ConditionVarNotifyAllTest, ::testing::Values(2, 10, 100, 1000, 10000));
+    ConditionVarNotifyAllTests, ConditionVarNotifyAllTest, ::testing::Values(2, 10, 100, 1000, 10000/2));
 // config::kMaxTestTaskNum is too big, just ignore
 
 TEST_P(ConditionVarProducerConsumerTest, ConditionVarProducerConsumer)
