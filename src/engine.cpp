@@ -93,16 +93,23 @@ auto engine::poll_submit() noexcept -> void
 {
     // TODO[lab2a]: Add you codes
     // 1.提交io任务
-    m_upxy.submit();
-    m_running_io += m_submit_io;
-    m_submit_io = 0;
-
+    if (m_submit_io > 0)
+    {
+        m_upxy.submit();
+        m_running_io += m_submit_io;
+        m_submit_io = 0;
+    }
+    
     // 2.处理已完成的io任务
-    int cqe_num = m_upxy.peek_batch_cqe(m_urc.data(), m_urc.size());
-    for (int i = 0; i < cqe_num; ++i)
-        handle_cqe_entry(m_urc[i]);
-    m_upxy.cq_advance(cqe_num);
-    m_running_io -= cqe_num;
+    if(m_running_io > 0) {
+        int cqe_num = m_upxy.peek_batch_cqe(m_urc.data(), m_urc.size());
+        if(cqe_num > 0) {
+            for (int i = 0; i < cqe_num; ++i)
+                handle_cqe_entry(m_urc[i]);
+            m_upxy.cq_advance(cqe_num);
+            m_running_io -= cqe_num;
+        }  
+    } 
 }
 
 auto engine::add_io_submit() noexcept -> void
@@ -130,4 +137,10 @@ auto engine::wait_task() noexcept -> uint64_t
     assert(ret != -1 && "eventfd read error");
     return res;
 }
+
+auto engine::has_completed_io_fast_check() noexcept -> bool
+{
+    return m_upxy.has_completed_io_fast_check();
+}
+
 }; // namespace coro::detail

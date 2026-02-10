@@ -151,6 +151,10 @@ public:
     // TODO[lab2b]: Add more function if you need
     auto task_completed() noexcept -> bool;
 
+    auto has_ready_task() noexcept -> bool;
+
+    auto has_wait_task() noexcept -> bool;
+
     auto set_stop_cb(const stop_cb& cb) noexcept -> void { m_stop_cb = cb;}
 
 private:

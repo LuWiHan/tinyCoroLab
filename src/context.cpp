@@ -1,9 +1,11 @@
 #include "coro/context.hpp"
 #include "coro/scheduler.hpp"
 #include <coroutine>
+#include <cstddef>
 
 namespace coro
 {
+const int g_spin_count = 32;
 context::context() noexcept
 {
     m_id = ginfo.context_id.fetch_add(1, std::memory_order_relaxed);
@@ -71,7 +73,8 @@ auto context::run(stop_token token) noexcept -> void
     while (true)
     {
         // 1.处理计算任务
-        while (m_engine.ready())
+        size_t task_num = m_engine.num_task_schedule();
+        for(size_t i = 0;i < task_num; ++i)
             m_engine.exec_one_task();
 
         // 2.处理IO任务
@@ -85,13 +88,25 @@ auto context::run(stop_token token) noexcept -> void
         // 在进行等待前，是否满足事件循环退出条件：线程退出信号 && 所有任务完成
         // 如果满足，调用m_stop_cb函数，根据函数的返回值判断是否退出
         // 如果返回true，退出否则继续事件循环
-        if(token.stop_requested() && task_completed())
+        if(token.stop_requested() && task_completed()) // 是否满足退出条件
         {
             if(m_stop_cb())
                 break;
         }
-            
-        m_engine.wait_task();
+
+        // 没有任务进入等待状态
+        if(!m_engine.ready()) {
+            bool need_wait = true;
+            for(int i=0;i<g_spin_count;++i) {
+                if(m_engine.has_completed_io_fast_check() || m_engine.ready()) {
+                    need_wait = false;
+                    break;
+                }
+            }
+            if(need_wait) {
+                m_engine.wait_task();
+            }
+        }
     }
 }
 
@@ -99,5 +114,16 @@ auto context::task_completed() noexcept -> bool
 {
     return m_engine.empty_io() && !m_engine.ready() && m_wait_num == 0;
 }
+
+auto context::has_ready_task() noexcept -> bool
+{
+    return !m_engine.empty_io() || m_engine.ready();
+}
+
+auto context::has_wait_task() noexcept -> bool
+{
+    return m_wait_num > 0;
+}
+
 
 }; // namespace coro

@@ -75,7 +75,7 @@ constexpr unsigned int kFixFdArraySize = 8;
 
 // WARN: These two modes cannot be enabled simultaneously
 // uncomment below to open uring sqpool mode
-// #define ENABLE_SQPOOL
+#define ENABLE_SQPOOL
 
 // uncomment below to open uring iopoll mode,
 // iopoll mode need hardware support and only support fd with O_DIRECT
@@ -120,7 +120,7 @@ inline bool kLongRunMode = true;
 
 // =========================== tcp configuration ============================
 constexpr int kDefaultPort = 8000;
-constexpr int kBacklog     = 5;
+constexpr int kBacklog     = 1000;
 
 // ========================== http configuration ============================
 

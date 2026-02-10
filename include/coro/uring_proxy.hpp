@@ -7,9 +7,9 @@
 #include <liburing.h>
 #include <sys/eventfd.h>
 #include <vector>
-// #ifdef ENABLE_SQPOOL
-//     #include <time.h>
-// #endif // ENABLE_SQPOOL
+#ifdef ENABLE_SQPOOL
+    #include <time.h>
+#endif // ENABLE_SQPOOL
 
 #include "config.h"
 #include "coro/attribute.hpp"
@@ -273,6 +273,13 @@ public:
                 std::exit(1);
             }
         }
+    }
+
+    auto has_completed_io_fast_check() noexcept -> bool
+    {
+        // io_uring 的完成队列头部指针是用户态可见的
+        // 可以在用户态检查有多少IO完成还没消费
+        return io_uring_cq_ready(&m_uring) > 0;
     }
 
 private:

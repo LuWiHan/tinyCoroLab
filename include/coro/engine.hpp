@@ -174,6 +174,8 @@ public:
      */
     auto wait_task() noexcept -> uint64_t;
 
+    auto has_completed_io_fast_check() noexcept -> bool;
+
 private:
     uint32_t    m_id;
     uring_proxy m_upxy;
