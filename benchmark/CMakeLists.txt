@@ -18,7 +18,7 @@ foreach (tinycoro_bench_source ${TINYCORO_BENCH_SOURCES})
   if(ENABLE_COMPILE_OPTIMIZE)
     target_compile_options(${tinycoro_bench_name} PUBLIC -O3)
   endif()
-  target_link_libraries(${tinycoro_bench_name} ${PROJECT_NAME})
+  target_link_libraries(${tinycoro_bench_name} ${PROJECT_NAME} ${URING_PATH})
 
   set_target_properties(${tinycoro_bench_name}
     PROPERTIES

@@ -282,6 +282,8 @@ public:
     {
         struct awaitable : public awaitable_base
         {
+            // 应该还要清理对应的协程
+            // 如果对应的协程执行完成后，发现它是一个被detach的协程，就销毁它
             auto await_resume() -> decltype(auto) { return this->m_coroutine.promise().result(); }
         };
 

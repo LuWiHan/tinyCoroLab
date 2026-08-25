@@ -70,7 +70,10 @@ auto engine::submit_task(coroutine_handle<> handle) noexcept -> void
 {
     // TODO[lab2a]: Add you codes
     m_task_queue.push(handle);
-    notify();
+    if(this != linfo.egn)
+    {
+        notify();
+    }
 }
 
 auto engine::exec_one_task() noexcept -> void
